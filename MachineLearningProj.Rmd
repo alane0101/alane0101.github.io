@@ -1,0 +1,128 @@
+---
+title: "Exercise Activity Classifier"
+author: "alane0101"
+date: "January 6, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Data Provenance
+This project makes use of data from the Weight Lifting Exercises Dataset, generously made public by Groupware@LES. Six young healthy participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz5btJ16kFQ
+
+### The goal of this project is to predict the manner in which participants performed the exercise. This is the **classe** variable in the training set. Herein, we train several different models, assess their accuracy, and select the best model for application to 20 test cases.
+
+We start by reading in and exploring the data. (Exploration happens off-screen, in the interest of brevity.)
+
+```{r, echo=TRUE}
+# Require packages
+packages <- c("stats", "graphics", "ggplot2", "grDevices", "caret", "RANN", "knitr", "ElemStatLearn", "randomForest", "gbm", "AppliedPredictiveModeling", "kernlab")
+lapply(packages, library, character.only = TRUE)
+
+# Set seed
+set.seed(11235)
+
+# Obtain data
+pml_training <- read.csv("../../Downloads/pml-training.csv")
+pml_testing <- read.csv("../../Downloads/pml-testing.csv")
+```
+
+For compute efficiency, we'll want to remove from all dataframes the columns that are entirely NAs in **pml_testing**, because they are obviously not predictive. We'll also remove those variables that clearly do not influence the outcome, such as timestamp.
+
+```{r, echo=TRUE}
+testNA <- c(1:7, 12:36, 50:59, 69:83, 87:101, 103:112, 125:139, 141:150)
+NAcheck <- is.na(pml_testing[,testNA]) # Non-NA, ignored variables are all in the head
+
+sansNA_test <- pml_testing[,-testNA]
+sansNA_train <- pml_training[,-testNA]
+names(sansNA_train) # New index of "classe" is 53
+```
+
+Next, we transform with Box-Cox and pre-process with PCA, which can be done all at once using *preProcess*. Since **classe** is our outcome, we will exclude it.
+*Note:* Though "tree-based methods tend to perform well on unprocessed data (i.e. without normalizing, centering, scaling features)" [Source: http://uc-r.github.io/gbm_regression], PCA is helpful here for the purposes of reducing the number of predictors (and also the noise).
+
+```{r, echo=TRUE}
+preProc <- preProcess(sansNA_train[,-53], method = c("BoxCox", "center", "scale", "pca", "knnImpute"))
+PC <- predict(preProc, sansNA_train[,-53])
+PCtrain <- data.frame(PC, classe = sansNA_train$classe)
+```
+
+Now, we can perform cross-validation for 3 different classification models/methods, reserving 20% of our data each time for testing. Note that **pml_testing** does not contain the **classe** variable. [Reference: https://topepo.github.io/caret/available-models.html]
+
+```{r, echo=TRUE}
+inTrain <- createDataPartition(y = PCtrain$classe, p=0.8, list=FALSE)
+training <- PCtrain[inTrain,]
+testing <- PCtrain[-inTrain,]
+
+fit1 <- train(classe ~ ., method = "lda", data = training, verbose = FALSE)
+fit2 <- train(classe ~ ., method = "rf", data = training)
+fit3 <- train(classe ~ ., method = "svmLinear", data = training)
+```
+
+We next want to assess the accuracy of each of the 3 models:
+
+```{r, echo=TRUE}
+predict1 <- predict(fit1, newdata = testing)
+predict2 <- predict(fit2, newdata = testing)
+predict3 <- predict(fit3, newdata = testing)
+
+acc1 <- confusionMatrix(predict1, testing$classe)
+acc2 <- confusionMatrix(predict2, testing$classe)
+acc3 <- confusionMatrix(predict3, testing$classe)
+```
+
+Plots help visualize the accuracy:
+
+```{r, echo=TRUE}
+qplot(predict1, data = testing, fill = classe)
+```
+
+Fig. 1: Linear Discriminant Analysis model
+
+```{r, echo=TRUE}
+qplot(predict2, data = testing, fill = classe)
+```
+
+Fig. 2: Random Forest model
+
+```{r, echo=TRUE}
+qplot(predict3, data = testing, fill = classe)
+```
+
+Fig. 3: Support Vector Machine with Linear Kernel model
+
+As you can see, the random forest model is quite good, but the other two are only right about half the time. Before selecting the random forest, let's see if ensembling via random forest can improve upon the accuracy. This way, our composite model can follow a decision tree that allows it to maximize accuracy.
+
+We build and train a composite model:
+
+```{r, echo=TRUE}
+predDF <- data.frame(predict1, predict2, predict3, classe = testing$classe)
+comboFit <- train(classe ~ ., method = "rf", data = predDF)
+comboPred <- predict(comboFit, predDF)
+
+comboAcc <- confusionMatrix(comboPred, testing$classe)
+print(comboAcc$overall[1])
+```
+
+We can see that the random forest model (**fit2**) is the most accurate model, and is not improved upon by ensembling, so we will apply fit2 to the test cases:
+
+```{r, echo=TRUE}
+testPC <- predict(preProc, sansNA_test[,-53])
+PCtest <- data.frame(testPC, problem_id = sansNA_test$problem_id)
+
+act_classifier <- predict(fit2, PCtest)
+```
+
+### Test Case Predictions and Out of Sample Error Rate
+With an accuracy rate of `r acc2$overall[1]`, we expect that at least 19 of our 20 predictions will be correct.
+
+```{r, echo=TRUE}
+kable(act_classifier, digits = 21, row.names = 1:20, col.names = "Activity Type")
+```
+
+Fig. 4: Predictions, by Problem ID
