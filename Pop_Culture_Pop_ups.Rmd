@@ -1,0 +1,33 @@
+---
+title: "Pop Culture Pop-Ups"
+author: "alane0101"
+date: "January 17, 2019"
+output: html_document
+---
+
+```{r, echo=FALSE, eval=TRUE}
+library(leaflet)
+
+mediaRef <- c(
+  "<a href='https://www.youtube.com/watch?v=qzY3EaJTuJk'>West Covina</a>",
+  "<a href='https://www.youtube.com/watch?v=jqWt49o7R-k'>San Jose</a>",
+  "<a href='https://www.youtube.com/watch?v=hu-X9KUFLWI'>Burbank</a>",
+  "<a href='https://www.youtube.com/watch?v=y-OJVwUG76k'>Los Angeles</a>",
+  "<a href='https://www.youtube.com/watch?v=xjRnbOgoAUQ'>Santa Clarita</a>",
+  "<a href='https://www.youtube.com/watch?v=02vkjfRs6dw'>Silicon Valley</a>",
+  "<a href='https://www.youtube.com/watch?v=tRR_b5aDn6w'>Pasadena</a>"
+)
+
+latLong <- data.frame(
+lat = c(34.069367, 37.333882, 34.188330, 34.054532, 34.379698, 37.427436, 34.147884),
+lng = c(-117.939130, -121.890274, -118.325902, -118.246526, -118.552142, -122.083668, -118.145967)
+)
+
+map <- latLong %>%
+        leaflet() %>%
+        addTiles() %>%
+        addMarkers(popup = mediaRef, clusterOptions = markerClusterOptions())
+
+map
+        
+```
