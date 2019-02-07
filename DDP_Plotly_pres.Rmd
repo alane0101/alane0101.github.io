@@ -1,0 +1,44 @@
+---
+title: "Average Number of Spontaneous vs. Induced Abortions, by Age"
+author: "alane0101"
+date: "February 6, 2019"
+output: ioslides_presentation
+---
+
+## Intro
+Women's reproductive rights and health have been in the U.S. news recently. I was curious to explore whether the **infert** dataset reflected the popular notion that younger women have more induced abortions and older women have more spontaneous abortions (i.e., "miscarriages"). This is an incredibly cursory comparison thereof.
+
+## Interactive Plot
+```{r, echo=FALSE, message=FALSE, warning=FALSE, error=FALSE, results="hide"}
+packages <- c("datasets", "plotly", "stats", "dplyr", "tidyr", "knitr")
+lapply(packages, library, character.only = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE}
+data("infert")
+
+newdata <- infert %>% group_by(age) %>% summarise(mean_spon = mean(spontaneous), mean_ind = mean(induced))
+
+f <- list(
+  family = "Arial, sans-serif",
+  size = 18,
+  color = "#4f4e4e"
+)
+
+a <- list(
+  title = "Age",
+  titlefont = f
+)
+
+b <- list(
+  title = "Mean No. of Abortions",
+  titlefont = f
+)
+
+p <- plot_ly(data = newdata, x = ~age, y = ~mean_spon, type = "scatter", color = I("green"), name = "Spontaneous") %>%
+  add_trace(y = ~mean_ind, color = I("blue"), name = "Induced") %>%
+  layout(title = "Spontaneous vs. Induced Abortions, by Age", xaxis = a, yaxis = b)
+
+p
+```
+
